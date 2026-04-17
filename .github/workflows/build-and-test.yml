@@ -113,3 +113,21 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/*.whl
+  publish-to-pypi:
+    if: ${{ startsWith(github.ref, 'refs/tags/') }}
+    name: Publish wheels to PyPI
+    needs:
+      - build_wheels
+    runs-on: ubuntu-latest
+    # OIDC Trusted Publishing — no API token stored in the repo. Configure
+    # the matching "pending publisher" on PyPI (repo=pgserver-search,
+    # workflow=build-and-test.yml) before pushing the first tag.
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: python-package-distributions-*
+          path: dist/
+          merge-multiple: true
+      - uses: pypa/gh-action-pypi-publish@release/v1
