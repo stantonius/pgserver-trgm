@@ -1,78 +1,105 @@
-![Python Version](https://img.shields.io/badge/python-3.9%2C%203.10%2C%203.11%2C%203.12-blue)
-![Postgres Version](https://img.shields.io/badge/PostgreSQL-16.2-blue)
+# pgserver-trgm
 
-![Linux Support](https://img.shields.io/badge/Linux%20Support-manylinux-green)
-![macOS Apple Silicon Support >=11](https://img.shields.io/badge/macOS%20Apple%20Silicon%20Support-%E2%89%A511(BigSur)-green)
-![macOS Intel Support => 10.0](https://img.shields.io/badge/macOS%20Intel%20Support-%E2%89%A510.9-green)
-![Windows Support >= 2022](https://img.shields.io/badge/Windows%20AMD64%20Support-%E2%89%A52022-green)
+A self-contained Postgres server for Python applications, with the
+`pg_trgm` trigram-matching extension and `pgvector` bundled in.
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-darkblue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![PyPI Package](https://img.shields.io/pypi/v/pgserver?color=darkorange)](https://pypi.org/project/pgserver)
-![PyPI - Downloads](https://img.shields.io/pypi/dm/pgserver)
+## What this is
 
+This is a fork of [orm011/pgserver](https://github.com/orm011/pgserver)
+that adds `contrib/pg_trgm` to the bundled Postgres build. All credit
+for the core design and implementation goes to Oscar Moll — this fork
+only changes the build recipe and packaging.
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/orm011/pgserver/main/pgserver_square_small.png"/>
-</p>
+The upstream `pgserver` bundles Postgres + `pgvector`. This fork
+additionally builds and installs `pg_trgm` into the packaged Postgres
+layout, so you can `CREATE EXTENSION pg_trgm` without any extra steps.
 
-# pgserver: pip-installable, embedded postgres server + pgvector extension for your python app
+## Why
 
-`pgserver` lets you build Postgres-backed python apps with the same convenience afforded by an embedded database (ie, alternatives such as sqlite). 
-If you build your app with pgserver, your app remains wholly pip-installable, saving your users from needing to understand how to setup a postgres server (they simply pip install your app, and postgres is brought in through dependencies), and letting you get started developing quickly: just `pip install pgserver` and `pgserver.get_server(...)`, as shown in this notebook: <a target="_blank" href="https://colab.research.google.com/github/orm011/pgserver/blob/master/pgserver-example.ipynb"> <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/> </a> 
+`pg_trgm` ships in Postgres' `contrib/` tree but is not installed by
+the default `make install` that upstream pgserver runs. If you want
+trigram similarity / fuzzy string matching alongside vector search in
+an embedded Postgres, you previously had to build it yourself. This
+fork does that for you.
 
-To achieve this, you need two things which `pgserver` provides
-  * python binary wheels for multiple-plaforms with postgres binaries
-  * convenience python methods that handle db initialization and server process management, that deals with things that would normally prevent you from running your python app seamlessly on environments like docker containers, a machine you have no root access in, machines with other running postgres servers, google colab, etc.  One main goal of the project is robustness around this.
+## Install
 
-Additionally, this package includes the [pgvector](https://github.com/pgvector/pgvector) postgres extension, useful for storing associated vector data and for vector similarity queries.
+### From a GitHub Release wheel (recommended)
 
-This fork additionally builds and installs the `pg_trgm` contrib module so
-that `CREATE EXTENSION pg_trgm;` works against the bundled Postgres without
-needing any extra build steps. See `pgbuild/Makefile` (`pg_trgm` target).
+Pre-built wheels for Linux, macOS (x86_64 + arm64), and Windows are
+attached to each tagged release:
 
-## Basic summary:
-* _Pip installable binaries_: built and tested on Manylinux, MacOS and Windows.
-* _No sudo or admin rights needed_: Does not require `root` privileges or `sudo`.
-* but... _can handle root_: in some environments your python app runs as root, eg docker, google colab, `pgserver` handles this case.
-* _Simpler initialization_: `pgserver.get_server(MY_DATA_DIR)` method to initialize data and server if needed, so you don't need to understand `initdb`, `pg_ctl`, port conflicts.
-* _Convenient cleanup_: server process cleanup is done for you: when the process using pgserver ends, the server is shutdown, including when multiple independent processes call
-`pgserver.get_server(MY_DATA_DIR)` on the same dir (wait for last one). You can blow away your PGDATA dir and start again.
-* For lower-level control, wrappers to all binaries, such as `initdb`, `pg_ctl`, `psql`, `pg_config`. Includes header files in case you wish to build some other extension and use it against these binaries.
-
-```py
-# Example 1: postgres backed application
-import pgserver
-
-db = pgserver.get_server(MYPGDATA)
-# server ready for connection.
-
-print(db.psql('create extension vector'))
-print(db.psql('create extension pg_trgm'))
-db_uri = db.get_uri()
-# use uri with sqlalchemy / psycopg, etc, see colab.
-
-# if no other process is using this server, it will be shutdown at exit,
-# if other process use same pgadata, server process will be shutdown when all stop.
+```bash
+pip install https://github.com/stantonius/pgserver-trgm/releases/download/v0.1.4/pgserver_trgm-0.1.4-<tag>.whl
 ```
 
-```py
-# Example 2: Testing
-import tempfile
-import pytest
-@pytest.fixture
-def tmp_postgres():
-    tmp_pg_data = tempfile.mkdtemp()
-    pg = pgserver.get_server(tmp_pg_data, cleanup_mode='stop')
-    yield pg
+Pick the wheel matching your platform/Python version from the
+[releases page](https://github.com/stantonius/pgserver-trgm/releases).
+
+### From source (security-conscious install)
+
+If you'd rather inspect the code and build Postgres yourself instead
+of trusting a binary wheel, do this:
+
+```bash
+# 1. Clone and inspect
+git clone https://github.com/stantonius/pgserver-trgm.git
+cd pgserver-trgm
+
+# 2. Audit what will run during the build
+less pgbuild/Makefile   # downloads postgres-16.2.tar.gz from ftp.postgresql.org
+less setup.py           # hooks `make` into setuptools' build_py
+less pyproject.toml
+
+# 3. Install system build deps (Debian/Ubuntu)
+sudo apt-get install -y build-essential curl tar zlib1g-dev
+
+# macOS: Xcode command line tools are enough
+# xcode-select --install
+
+# 4. Build the Postgres binaries into src/pgserver/pginstall/
+make build
+
+# 5. Build a wheel from those binaries and install it
+make install-wheel
+```
+
+The `make install-wheel` target runs `make build` (downloads Postgres
+16.2 source, configures, compiles, installs `pg_trgm` + `pgvector`
+into the package layout) and then `pip install dist/*.whl`. Takes
+~5–10 minutes the first time; everything is cached after that.
+
+## Usage
+
+The Python import name stays `pgserver` (so existing code keeps
+working) — only the distribution name is `pgserver-trgm`.
+
+```python
+import pgserver, tempfile
+
+with tempfile.TemporaryDirectory() as d:
+    pg = pgserver.get_server(d, cleanup_mode='delete')
+    pg.psql("CREATE EXTENSION pg_trgm;")
+    pg.psql("CREATE EXTENSION vector;")
+    print(pg.psql("SELECT similarity('hello', 'helo');"))
     pg.cleanup()
 ```
 
-Postgres binaries in the package can be found in the directory pointed
-to by the `pgserver.POSTGRES_BIN_PATH` to be used directly.
+## License
 
-This project was originally based on [](https://github.com/michelp/postgresql-wheel), which provides a linux wheel.
-But adds the following differences:
-1. binary wheels for multiple platforms (ubuntu x86, MacOS apple silicon, MacOS x86, Windows)
-2. postgres python management: cross-platfurm startup and cleanup including many edge cases, runs on colab etc.
-3. includes `pgvector` extension but currently excludes `postGIS`
-4. (this fork) additionally bundles the `pg_trgm` contrib module
+Same as upstream pgserver — PostgreSQL license (MIT-family). See
+[`LICENSE`](./LICENSE).
+
+## Differences from upstream
+
+- `pgbuild/Makefile` — adds a `pg_trgm` target that builds and
+  installs `contrib/pg_trgm` into `src/pgserver/pginstall/`.
+- `setup.py` — hooks `make build` into setuptools so source
+  installs (`pip install git+https://...`) produce a working wheel
+  automatically.
+- `pyproject.toml` — package renamed to `pgserver-trgm`; adds
+  `include-package-data` and a `pginstall/**` glob so the built
+  binaries are shipped inside the wheel.
+- `.github/workflows/build-and-test.yml` — tagged releases upload
+  wheels as GitHub Release assets (upstream uses PyPI Trusted
+  Publishing).
