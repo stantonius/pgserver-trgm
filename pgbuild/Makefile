@@ -3,7 +3,7 @@ INSTALL_PREFIX := $(shell pwd)/../src/pgserver/pginstall/
 BUILD := $(shell pwd)/pgbuild/
 
 .PHONY: all
-all: pgvector postgres
+all: pgvector pg_trgm postgres
 
 ### postgres
 POSTGRES_VERSION := 16.2
@@ -60,6 +60,19 @@ $(INSTALL_PREFIX)/lib/vector.so: $(PGVECTOR_DIR)/Makefile $(INSTALL_PREFIX)/bin/
 
 .PHONY: pgvector
 pgvector: postgres $(INSTALL_PREFIX)/lib/vector.so
+
+### contrib/pg_trgm
+# pg_trgm ships in the postgres source tree under contrib/.  The default
+# `make install` only installs the core server, so we explicitly build and
+# install the contrib module against the same INSTALL_PREFIX so that the
+# extension lands in the packaged Postgres layout (lib/pg_trgm.so plus
+# share/extension/pg_trgm*.{control,sql}).
+$(INSTALL_PREFIX)/lib/pg_trgm.so: $(INSTALL_PREFIX)/bin/postgres
+	unset MAKELEVEL && unset MAKEFLAGS && unset MFLAGS && $(MAKE) -C $(POSTGRES_BLD)/contrib/pg_trgm -j
+	unset MAKELEVEL && unset MAKEFLAGS && unset MFLAGS && $(MAKE) -C $(POSTGRES_BLD)/contrib/pg_trgm install
+
+.PHONY: pg_trgm
+pg_trgm: postgres $(INSTALL_PREFIX)/lib/pg_trgm.so
 
 ### other
 .PHONY: clean clean-all

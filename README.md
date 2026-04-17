@@ -26,6 +26,10 @@ To achieve this, you need two things which `pgserver` provides
 
 Additionally, this package includes the [pgvector](https://github.com/pgvector/pgvector) postgres extension, useful for storing associated vector data and for vector similarity queries.
 
+This fork additionally builds and installs the `pg_trgm` contrib module so
+that `CREATE EXTENSION pg_trgm;` works against the bundled Postgres without
+needing any extra build steps. See `pgbuild/Makefile` (`pg_trgm` target).
+
 ## Basic summary:
 * _Pip installable binaries_: built and tested on Manylinux, MacOS and Windows.
 * _No sudo or admin rights needed_: Does not require `root` privileges or `sudo`.
@@ -43,6 +47,7 @@ db = pgserver.get_server(MYPGDATA)
 # server ready for connection.
 
 print(db.psql('create extension vector'))
+print(db.psql('create extension pg_trgm'))
 db_uri = db.get_uri()
 # use uri with sqlalchemy / psycopg, etc, see colab.
 
@@ -70,3 +75,4 @@ But adds the following differences:
 1. binary wheels for multiple platforms (ubuntu x86, MacOS apple silicon, MacOS x86, Windows)
 2. postgres python management: cross-platfurm startup and cleanup including many edge cases, runs on colab etc.
 3. includes `pgvector` extension but currently excludes `postGIS`
+4. (this fork) additionally bundles the `pg_trgm` contrib module

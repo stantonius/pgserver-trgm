@@ -25,9 +25,17 @@ test = [
     "sqlalchemy-utils"
 ]
 
+[tool.setuptools]
+include-package-data = true
+
 [tool.setuptools.packages.find]
 where = ["src"]  # list of folders that contain the packages (["."] by default)
 include = ["pgserver*"]  # package names should match these glob patterns (["*"] by default)
+
+[tool.setuptools.package-data]
+# Ship the bundled Postgres (built by pgbuild/Makefile via the setup.py
+# build hook) inside the wheel so the package works after pip install.
+pgserver = ["pginstall/**/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
