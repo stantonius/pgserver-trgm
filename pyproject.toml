@@ -48,6 +48,10 @@ before-all = "make"
 test-extras = "test"
 test-command = "bash -x {project}/cibuildwheel_test.bash {project}"
 
+[tool.cibuildwheel.linux]
+# manylinux docker images don't ship flex/bison; Postgres' configure needs both.
+before-all = "yum install -y flex bison && make"
+
 [build-system]
 # These are the assumed default build requirements from pip:
 # https://pip.pypa.io/en/stable/reference/pip/#pep-517-and-518-support
